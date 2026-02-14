@@ -159,6 +159,11 @@ export const zh_CN: Translation = {
 	[Key.projectsSource]: "源代码",
 	[Key.projectsVisit]: "前往",
 	[Key.projectsGitHub]: "GitHub",
+	[Key.projectsShowMore]: "展开更多",
+	[Key.projectsShowLess]: "收起",
+	[Key.projectsTechChart]: "技术栈概览",
+	[Key.projectsClearFilter]: "清除筛选",
+	[Key.projectsNoMatch]: "没有匹配所选技术的项目",
 
 	// 技能展示页面
 	[Key.skills]: "技能展示",

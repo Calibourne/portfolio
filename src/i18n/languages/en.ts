@@ -164,6 +164,11 @@ export const en: Translation = {
 	[Key.projectsSource]: "Source Code",
 	[Key.projectsVisit]: "Visit Project",
 	[Key.projectsGitHub]: "GitHub",
+	[Key.projectsShowMore]: "Show more",
+	[Key.projectsShowLess]: "Show less",
+	[Key.projectsTechChart]: "Tech Stack Overview",
+	[Key.projectsClearFilter]: "Clear filter",
+	[Key.projectsNoMatch]: "No projects match the selected technologies",
 
 	// RSS Page
 	[Key.rss]: "RSS Feed",

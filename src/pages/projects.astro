@@ -5,44 +5,40 @@ import {
 	getAllTechStack,
 	getFeaturedProjects,
 	getProjectStats,
-	getProjectsByCategory,
-	projectsData,
-} from "../data/projects";
+	getProjects,
+	getTechFrequency,
+} from "../utils/project-utils";
+import ProjectsChart from "../components/ProjectsChart.svelte";
 import I18nKey from "../i18n/i18nKey";
 import { i18n } from "../i18n/translation";
 import MainGridLayout from "../layouts/MainGridLayout.astro";
-
-// import { loadIconify } from "../utils/icon-loader";
+import ImageWrapper from "../components/misc/ImageWrapper.astro";
+import { getFileDirFromPath } from "../utils/url-utils";
 
 // 检查项目页面是否启用
 if (!siteConfig.featurePages.projects) {
 	return Astro.redirect("/404/");
 }
 
-// const { lang } = Astro.props;
-
-// 加载Iconify图标库 - 移至客户端执行
-// loadIconify().catch((error) => {
-// 	console.error("Failed to load Iconify:", error);
-// });
-
 // 获取项目统计信息
-const stats = getProjectStats();
-const featuredProjects = getFeaturedProjects();
-const allTechStack = getAllTechStack();
+const stats = await getProjectStats();
+const featuredProjects = await getFeaturedProjects();
+const allTechStack = await getAllTechStack();
+const techFrequency = await getTechFrequency();
+const projects = await getProjects();
 
 // 获取所有分类
 const categories = [
-	...new Set(projectsData.map((project) => project.category)),
+	...new Set(projects.map((project) => project.data.category)),
 ];
 
 // 按分类获取项目
 const projectsByCategory = categories.reduce(
 	(acc, category) => {
-		acc[category] = getProjectsByCategory(category);
+		acc[category] = projects.filter((p) => p.data.category === category);
 		return acc;
 	},
-	{} as Record<string, typeof projectsData>,
+	{} as Record<string, typeof projects>,
 );
 
 const title = i18n(I18nKey.projects);
@@ -77,6 +73,80 @@ const getCategoryText = (category: string) => {
     loadIconify().catch((error) => {
       console.error("Failed to load Iconify:", error);
     });
+  </script>
+  <script define:vars={{ showMoreText: i18n(I18nKey.projectsShowMore), showLessText: i18n(I18nKey.projectsShowLess) }}>
+    function initProjectToggles() {
+      // Description expand/collapse
+      document.querySelectorAll('.project-desc-wrapper').forEach((wrapper) => {
+        const desc = wrapper.querySelector('.project-desc');
+        const btn = wrapper.querySelector('.project-desc-toggle');
+        if (!desc || !btn) return;
+
+        if (desc.scrollHeight > desc.clientHeight) {
+          btn.classList.remove('hidden');
+        }
+
+        btn.addEventListener('click', () => {
+          const isNowClamped = desc.classList.toggle('line-clamp-2');
+          btn.textContent = isNowClamped ? showMoreText : showLessText;
+        });
+      });
+
+      // Tech stack expand/collapse
+      document.querySelectorAll('.tech-stack-wrapper').forEach((wrapper) => {
+        const btn = wrapper.querySelector('.tech-stack-toggle');
+        if (!btn) return;
+        const extras = wrapper.querySelectorAll('.tech-stack-extra');
+        if (extras.length === 0) return;
+
+        const countText = btn.textContent;
+        btn.addEventListener('click', () => {
+          const isHidden = extras[0].classList.contains('hidden');
+          extras.forEach((el) => el.classList.toggle('hidden'));
+          btn.textContent = isHidden ? showLessText : countText;
+        });
+      });
+    }
+    document.addEventListener('DOMContentLoaded', initProjectToggles);
+    document.addEventListener('swup:contentReplaced', initProjectToggles);
+    initProjectToggles();
+  </script>
+  <script>
+    function initTechFilter() {
+      window.addEventListener('tech-filter-change', ((event) => {
+        const selectedTechs = (event as CustomEvent<string[]>).detail;
+        const cards = document.querySelectorAll('.project-card[data-tech]');
+        const categories = document.querySelectorAll('[data-category]');
+        const noMatch = document.getElementById('projects-no-match');
+        const hasFilter = selectedTechs.length > 0;
+
+        let visibleCount = 0;
+
+        cards.forEach((card) => {
+          const cardTechs = JSON.parse(card.getAttribute('data-tech') || '[]') as string[];
+          if (!hasFilter || selectedTechs.some((t) => cardTechs.includes(t))) {
+            (card as HTMLElement).style.display = '';
+            visibleCount++;
+          } else {
+            (card as HTMLElement).style.display = 'none';
+          }
+        });
+
+        // Hide category sections where all cards are hidden
+        categories.forEach((cat) => {
+          const catCards = cat.querySelectorAll('.project-card[data-tech]');
+          const anyVisible = Array.from(catCards).some(
+            (c) => (c as HTMLElement).style.display !== 'none'
+          );
+          (cat as HTMLElement).style.display = anyVisible ? '' : 'none';
+        });
+
+        if (noMatch) {
+          noMatch.classList.toggle('hidden', !hasFilter || visibleCount > 0);
+        }
+      }) as EventListener);
+    }
+    initTechFilter();
   </script>
   <div class="flex w-full rounded-[var(--radius-large)] overflow-hidden relative min-h-32">
     <div class="card-base z-10 px-9 py-6 relative w-full">
@@ -123,52 +193,63 @@ const getCategoryText = (category: string) => {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             {featuredProjects.map((project) => (
               <div class="bg-transparent rounded-lg border border-black/10 dark:border-white/10 overflow-hidden hover:shadow-lg transition-shadow duration-300">
-                {project.image && (
+                {project.data.image && (
                   <div class="aspect-video overflow-hidden">
-                    <img 
-                      src={project.image} 
-                      alt={project.title}
-                      class="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                    <ImageWrapper
+                      src={project.data.image}
+                      basePath={getFileDirFromPath(project.filePath || "")}
+                      alt={project.data.title}
+                      class="w-full h-full hover:scale-105 transition-transform duration-300"
                     />
                   </div>
                 )}
                 <div class="p-6">
                   <div class="flex items-start justify-between mb-3">
                     <h3 class="text-xl font-semibold text-black/90 dark:text-white/90">
-                      {project.title}
+                      {project.data.title}
                     </h3>
                     <span class={`px-2 py-1 text-xs rounded-full ${
-                      project.status === 'completed' 
+                      project.data.status === 'completed'
                         ? 'bg-green-600/20 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                        : project.status === 'in-progress'
+                        : project.data.status === 'in-progress'
                         ? 'bg-yellow-600/20 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
                         : 'bg-gray-600/20 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
                     }`}>
-                      {i18n(project.status === 'completed' ? I18nKey.projectsCompleted : 
-                            project.status === 'in-progress' ? I18nKey.projectsInProgress : 
+                      {i18n(project.data.status === 'completed' ? I18nKey.projectsCompleted :
+                            project.data.status === 'in-progress' ? I18nKey.projectsInProgress :
                             I18nKey.projectsPlanned)}
                     </span>
                   </div>
-                  <p class="text-black/60 dark:text-white/60 mb-4 line-clamp-2">
-                    {project.description}
-                  </p>
-                  <div class="flex flex-wrap gap-2 mb-4">
-                    {project.techStack.slice(0, 4).map((tech) => (
+                  <div class="project-desc-wrapper mb-4">
+                    <p class="text-black/60 dark:text-white/60 project-desc line-clamp-2">
+                      {project.data.description}
+                    </p>
+                    <button class="project-desc-toggle text-xs text-[var(--primary)] hover:underline cursor-pointer mt-1 hidden">
+                      {i18n(I18nKey.projectsShowMore)}
+                    </button>
+                  </div>
+                  <div class="flex flex-wrap gap-2 mb-4 tech-stack-wrapper">
+                    {project.data.techStack.slice(0, 4).map((tech) => (
                       <span class="px-2 py-1 text-xs bg-blue-600/20 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded">
                         {tech}
                       </span>
                     ))}
-                    {project.techStack.length > 4 && (
-                      <span class="px-2 py-1 text-xs bg-gray-600/20 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400 rounded">
-                        +{project.techStack.length - 4}
-                      </span>
+                    {project.data.techStack.length > 4 && (
+                      <button class="tech-stack-toggle px-2 py-1 text-xs bg-gray-600/20 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400 rounded cursor-pointer hover:bg-gray-600/30 dark:hover:bg-gray-900/50 transition-colors">
+                        +{project.data.techStack.length - 4}
+                      </button>
                     )}
+                    {project.data.techStack.slice(4).map((tech) => (
+                      <span class="px-2 py-1 text-xs bg-blue-600/20 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded tech-stack-extra hidden">
+                        {tech}
+                      </span>
+                    ))}
                   </div>
                   <div class="flex flex-wrap gap-2 text-sm">
-                    {project.visitUrl && (
-                      <a 
-                        href={project.visitUrl} 
-                        target="_blank" 
+                    {project.data.visitUrl && (
+                      <a
+                        href={project.data.visitUrl}
+                        target="_blank"
                         rel="noopener noreferrer"
                         class="btn-gradient btn-gradient-primary btn-gradient-md"
                       >
@@ -176,10 +257,10 @@ const getCategoryText = (category: string) => {
                         {i18n(I18nKey.projectsVisit)}
                       </a>
                     )}
-                    {project.sourceCode && (
-                      <a 
-                        href={project.sourceCode} 
-                        target="_blank" 
+                    {project.data.sourceCode && (
+                      <a
+                        href={project.data.sourceCode}
+                        target="_blank"
                         rel="noopener noreferrer"
                         class="btn-gradient btn-github btn-gradient-md"
                       >
@@ -202,7 +283,7 @@ const getCategoryText = (category: string) => {
           if (categoryProjects.length === 0) return null;
           
           return (
-            <div>
+            <div data-category={category}>
               <h2 class="text-2xl font-bold text-black/90 dark:text-white/90 mb-4 relative
                         before:w-1 before:h-6 before:rounded-md before:bg-[var(--primary)]
                         before:absolute before:top-1/2 before:-translate-y-1/2 before:-left-4">
@@ -213,53 +294,64 @@ const getCategoryText = (category: string) => {
               </h2>
               <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {categoryProjects.map((project) => (
-                  <div class="bg-transparent rounded-lg border border-black/10 dark:border-white/10 overflow-hidden hover:shadow-lg transition-shadow duration-300">
-                    {project.image && (
+                  <div class="project-card bg-transparent rounded-lg border border-black/10 dark:border-white/10 overflow-hidden hover:shadow-lg transition-shadow duration-300" data-tech={JSON.stringify(project.data.techStack)}>
+                    {project.data.image && (
                       <div class="aspect-video overflow-hidden">
-                        <img 
-                          src={project.image} 
-                          alt={project.title}
-                          class="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                        <ImageWrapper
+                          src={project.data.image}
+                          basePath={getFileDirFromPath(project.filePath || "")}
+                          alt={project.data.title}
+                          class="w-full h-full hover:scale-105 transition-transform duration-300"
                         />
                       </div>
                     )}
                     <div class="p-4">
                       <div class="flex items-start justify-between mb-2">
-                        <h3 class="text-lg font-semibold text-black/90 dark:text-white/90 line-clamp-1">
-                          {project.title}
+                        <h3 class="text-lg font-semibold text-black/90 dark:text-white/90">
+                          {project.data.title}
                         </h3>
                         <span class={`px-2 py-1 text-xs rounded-full shrink-0 ml-2 ${
-                          project.status === 'completed' 
+                          project.data.status === 'completed'
                             ? 'bg-green-600/20 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            : project.status === 'in-progress'
+                            : project.data.status === 'in-progress'
                             ? 'bg-yellow-600/20 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
                             : 'bg-gray-600/20 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
                         }`}>
-                          {i18n(project.status === 'completed' ? I18nKey.projectsCompleted : 
-                                project.status === 'in-progress' ? I18nKey.projectsInProgress : 
+                          {i18n(project.data.status === 'completed' ? I18nKey.projectsCompleted :
+                                project.data.status === 'in-progress' ? I18nKey.projectsInProgress :
                                 I18nKey.projectsPlanned)}
                         </span>
                       </div>
-                      <p class="text-black/60 dark:text-white/60 mb-3 text-sm line-clamp-2">
-                        {project.description}
-                      </p>
-                      <div class="flex flex-wrap gap-1 mb-3">
-                        {project.techStack.slice(0, 3).map((tech) => (
+                      <div class="project-desc-wrapper mb-3">
+                        <p class="text-black/60 dark:text-white/60 text-sm project-desc line-clamp-2">
+                          {project.data.description}
+                        </p>
+                        <button class="project-desc-toggle text-xs text-[var(--primary)] hover:underline cursor-pointer mt-1 hidden">
+                          {i18n(I18nKey.projectsShowMore)}
+                        </button>
+                      </div>
+                      <div class="flex flex-wrap gap-1 mb-3 tech-stack-wrapper">
+                        {project.data.techStack.slice(0, 3).map((tech) => (
                           <span class="px-2 py-1 text-xs bg-blue-600/20 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded">
                             {tech}
                           </span>
                         ))}
-                        {project.techStack.length > 3 && (
-                          <span class="px-2 py-1 text-xs bg-gray-600/20 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400 rounded">
-                            +{project.techStack.length - 3}
-                          </span>
+                        {project.data.techStack.length > 3 && (
+                          <button class="tech-stack-toggle px-2 py-1 text-xs bg-gray-600/20 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400 rounded cursor-pointer hover:bg-gray-600/30 dark:hover:bg-gray-900/50 transition-colors">
+                            +{project.data.techStack.length - 3}
+                          </button>
                         )}
+                        {project.data.techStack.slice(3).map((tech) => (
+                          <span class="px-2 py-1 text-xs bg-blue-600/20 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded tech-stack-extra hidden">
+                            {tech}
+                          </span>
+                        ))}
                       </div>
                       <div class="flex flex-wrap gap-2 text-sm">
-                        {project.visitUrl && (
-                          <a 
-                            href={project.visitUrl} 
-                            target="_blank" 
+                        {project.data.visitUrl && (
+                          <a
+                            href={project.data.visitUrl}
+                            target="_blank"
                             rel="noopener noreferrer"
                             class="btn-gradient btn-gradient-primary btn-gradient-md"
                           >
@@ -267,10 +359,10 @@ const getCategoryText = (category: string) => {
                             {i18n(I18nKey.projectsVisit)}
                           </a>
                         )}
-                        {project.sourceCode && (
-                          <a 
-                            href={project.sourceCode} 
-                            target="_blank" 
+                        {project.data.sourceCode && (
+                          <a
+                            href={project.data.sourceCode}
+                            target="_blank"
                             rel="noopener noreferrer"
                             class="btn-gradient btn-github btn-gradient-md"
                           >
@@ -288,31 +380,30 @@ const getCategoryText = (category: string) => {
         })}
       </div>
 
-      <!-- 技术栈统计 -->
+      <!-- 技术栈统计图表 -->
       <div class="mt-12 pt-8 border-t border-black/10 dark:border-white/10">
-        <h2 class="text-2xl font-bold text-black/90 dark:text-white/90 mb-4">
-          {i18n(I18nKey.projectsTechStack)}
+        <h2 class="text-2xl font-bold text-black/90 dark:text-white/90 mb-4 relative
+                  before:w-1 before:h-6 before:rounded-md before:bg-[var(--primary)]
+                  before:absolute before:top-1/2 before:-translate-y-1/2 before:-left-4">
+          {i18n(I18nKey.projectsTechChart)}
         </h2>
-        <div class="flex flex-wrap gap-2">
-          {allTechStack.map((tech) => (
-            <span class="px-3 py-1 text-sm bg-gray-600/20 text-gray-700 dark:bg-gray-800 dark:text-gray-300 rounded-full">
-              {tech}
-            </span>
-          ))}
-        </div>
+        <ProjectsChart
+          techFrequency={techFrequency}
+          clearFilterText={i18n(I18nKey.projectsClearFilter)}
+          noMatchText={i18n(I18nKey.projectsNoMatch)}
+          client:load
+        />
+      </div>
+
+      <!-- No results message (hidden by default) -->
+      <div id="projects-no-match" class="hidden mt-8 text-center py-12 text-black/50 dark:text-white/50">
+        <p class="text-lg">{i18n(I18nKey.projectsNoMatch)}</p>
       </div>
     </div>
   </div>
 </MainGridLayout>
 
 <style>
-  .line-clamp-1 {
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  
   .line-clamp-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;

@@ -159,6 +159,11 @@ export const zh_TW: Translation = {
 	[Key.projectsSource]: "原始碼",
 	[Key.projectsVisit]: "前往專案",
 	[Key.projectsGitHub]: "GitHub",
+	[Key.projectsShowMore]: "展開更多",
+	[Key.projectsShowLess]: "收起",
+	[Key.projectsTechChart]: "技術棧概覽",
+	[Key.projectsClearFilter]: "清除篩選",
+	[Key.projectsNoMatch]: "沒有匹配所選技術的專案",
 
 	// RSS 頁面
 	[Key.rss]: "RSS 訂閱",

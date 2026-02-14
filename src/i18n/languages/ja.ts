@@ -165,6 +165,11 @@ export const ja: Translation = {
 	[Key.projectsSource]: "ソースコード",
 	[Key.projectsVisit]: "プロジェクトを開く",
 	[Key.projectsGitHub]: "GitHub",
+	[Key.projectsShowMore]: "もっと見る",
+	[Key.projectsShowLess]: "閉じる",
+	[Key.projectsTechChart]: "技術スタック概要",
+	[Key.projectsClearFilter]: "フィルターをクリア",
+	[Key.projectsNoMatch]: "選択した技術に一致するプロジェクトはありません",
 
 	// RSSページ
 	[Key.rss]: "RSSフィード",

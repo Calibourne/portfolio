@@ -155,6 +155,11 @@ enum I18nKey {
 	projectsSource = "projectsSource",
 	projectsVisit = "projectsVisit",
 	projectsGitHub = "projectsGitHub",
+	projectsShowMore = "projectsShowMore",
+	projectsShowLess = "projectsShowLess",
+	projectsTechChart = "projectsTechChart",
+	projectsClearFilter = "projectsClearFilter",
+	projectsNoMatch = "projectsNoMatch",
 
 	// Skills page
 	skills = "skills",
