@@ -57,10 +57,10 @@ export const siteConfig: SiteConfig = {
    *  - "logo"      = logo only
    */
   navbarTitle: {
-    mode: "logo",
+    mode: "text-icon",
     text: "Eddie Kanevsky",
-    // icon: "material-symbols-outlined:terminal", // Uses icon set (recommended) instead of a local PNG
-    logo: "assets/home/default-logo.png", // If you switch mode to "logo", point this to your logo
+    icon: "assets/home/logo.png", // Uses icon set (recommended) instead of a local PNG
+    // logo: "assets/home/logo.png", // If you switch mode to "logo", point this to your logo
   },
 
   anime: {

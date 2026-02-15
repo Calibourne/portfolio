@@ -1,7 +1,6 @@
 ---
 import ImageWrapper from "../components/misc/ImageWrapper.astro";
 import { siteConfig } from "../config";
-import localAnimeList from "../data/anime";
 import I18nKey from "../i18n/i18nKey";
 import { i18n } from "../i18n/translation";
 import MainGridLayout from "../layouts/MainGridLayout.astro";
@@ -11,11 +10,13 @@ import { widgetManager } from "../utils/widget-manager";
 import "../styles/anime.css";
 
 interface RawAnimeItem {
+	anilistId?: number | string;
 	title?: string;
 	cover?: string;
 	link?: string;
 	status?: string;
 	rating?: number | string;
+	feeling?: string;
 	progress?: number | string;
 	totalEpisodes?: number | string;
 	description?: string;
@@ -25,11 +26,13 @@ interface RawAnimeItem {
 }
 
 interface AnimeItem {
+	anilistId?: number;
 	title: string;
-	cover: string;
+	cover: string; // we'll ensure it's always filled (or empty)
 	link: string;
 	status: string;
 	rating: number;
+	feeling?: string;
 	progress: number;
 	totalEpisodes: number;
 	description: string;
@@ -39,12 +42,12 @@ interface AnimeItem {
 }
 
 type AnimeSourceConfig =
-	| { type: "local"; data: AnimeItem[] }
+	| { type: "local" }
 	| {
 			type: "json";
 			filename: string;
 			fetchOnDev?: boolean;
-			emptyDescription?: string; // 可选：特定源的空状态描述
+			emptyDescription?: string;
 	  };
 
 if (!siteConfig.featurePages.anime) {
@@ -52,20 +55,15 @@ if (!siteConfig.featurePages.anime) {
 }
 
 const hasRightSidebars =
-	widgetManager.getComponentsByPosition("top", "right", "desktop").length >
-		0 ||
-	widgetManager.getComponentsByPosition("sticky", "right", "desktop").length >
-		0;
+	widgetManager.getComponentsByPosition("top", "right", "desktop").length > 0 ||
+	widgetManager.getComponentsByPosition("sticky", "right", "desktop").length > 0;
 
 const BANGUMI_USER_ID = siteConfig.bangumi?.userId || "your-user-id";
 const BILIBILI_VMID = siteConfig.bilibili?.vmid || "";
 const ANIME_MODE = siteConfig.anime?.mode || "bangumi";
 
 const sourceConfigs: Record<string, AnimeSourceConfig> = {
-	local: {
-		type: "local",
-		data: localAnimeList,
-	},
+	local: { type: "local" },
 	bilibili: {
 		type: "json",
 		filename: "bilibili-data.json",
@@ -78,13 +76,25 @@ const sourceConfigs: Record<string, AnimeSourceConfig> = {
 		fetchOnDev: siteConfig.bangumi?.fetchOnDev,
 		emptyDescription: i18n(I18nKey.animeEmptyBangumi),
 	},
-	// 示例：未来扩展 MyAnimeList
-	// myanimelist: {
-	//     type: "json",
-	//     filename: "mal-data.json",
-	//     fetchOnDev: siteConfig.mal?.fetchOnDev
-	// }
 };
+
+function normalizeRawAnime(rawData: RawAnimeItem[]): AnimeItem[] {
+	return rawData.map((item) => ({
+		anilistId: item.anilistId ? Number(item.anilistId) : undefined,
+		title: item.title || "Unknown",
+		cover: item.cover || "",
+		link: item.link || "",
+		status: item.status || "planned",
+		rating: Number(item.rating) || 0,
+		feeling: item.feeling,
+		progress: Number(item.progress) || 0,
+		totalEpisodes: Number(item.totalEpisodes) || 12,
+		description: item.description || "",
+		year: item.year || "",
+		studio: item.studio || "",
+		genre: Array.isArray(item.genre) ? item.genre : [],
+	}));
+}
 
 function loadAnimeData(filename: string): AnimeItem[] {
 	const dataPath = path.join(process.cwd(), `src/data/${filename}`);
@@ -97,24 +107,104 @@ function loadAnimeData(filename: string): AnimeItem[] {
 	try {
 		const fileContent = fs.readFileSync(dataPath, "utf-8");
 		const rawData = JSON.parse(fileContent) as RawAnimeItem[];
-
-		return rawData.map((item) => ({
-			title: item.title || "Unknown",
-			cover: item.cover || "",
-			link: item.link || "",
-			status: item.status || "planned",
-			rating: Number(item.rating) || 0,
-			progress: Number(item.progress) || 0,
-			totalEpisodes: Number(item.totalEpisodes) || 12,
-			description: item.description || "",
-			year: item.year || "",
-			studio: item.studio || "",
-			genre: Array.isArray(item.genre) ? item.genre : [],
-		}));
+		return normalizeRawAnime(rawData);
 	} catch (error) {
 		console.error(`[Anime] Failed to parse ${filename}:`, error);
 		return [];
 	}
+}
+
+function loadLocalAnimeData(): AnimeItem[] {
+	const animeDir = path.join(process.cwd(), "src/data/anime");
+	if (!fs.existsSync(animeDir)) return [];
+
+	const files = fs.readdirSync(animeDir).filter((f) => f.endsWith(".json"));
+	const allItems: AnimeItem[] = [];
+
+	for (const file of files) {
+		try {
+			const raw = JSON.parse(
+				fs.readFileSync(path.join(animeDir, file), "utf-8"),
+			) as RawAnimeItem[];
+			allItems.push(...normalizeRawAnime(raw));
+		} catch (error) {
+			console.error(`[Anime] Failed to parse anime/${file}:`, error);
+		}
+	}
+	return allItems;
+}
+
+/**
+ * ✅ AniList cover resolver (server-side)
+ * Fills missing covers based on anilistId.
+ *
+ * Note: AniList allows batching with Page(perPage:50). This keeps requests minimal.
+ */
+async function hydrateFromAniList(list: AnimeItem[]): Promise<AnimeItem[]> {
+	const needs = list.filter((x) => !x.cover && x.anilistId);
+	if (needs.length === 0) return list;
+
+	const ids = Array.from(new Set(needs.map((x) => x.anilistId!).filter(Boolean)));
+
+	// batch size safety
+	const BATCH = 50;
+	const idToCover = new Map<number, string>();
+
+	const query = `
+		query ($ids: [Int]) {
+			Page(perPage: 50) {
+				media(id_in: $ids, type: ANIME) {
+					id
+					siteUrl
+					coverImage { large }
+					title { romaji english native }
+					startDate { year }
+					genres
+					studios(isMain: true) { nodes { name } }
+					episodes
+				}
+			}
+		}
+	`;
+
+	for (let i = 0; i < ids.length; i += BATCH) {
+		const slice = ids.slice(i, i + BATCH);
+
+		try {
+			const res = await fetch("https://graphql.anilist.co", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"Accept": "application/json",
+				},
+				body: JSON.stringify({ query, variables: { ids: slice } }),
+			});
+
+			if (!res.ok) {
+				console.warn(`[Anime] AniList fetch failed: ${res.status} ${res.statusText}`);
+				continue;
+			}
+
+			const json = await res.json();
+			const media = json?.data?.Page?.media ?? [];
+
+			for (const m of media) {
+				if (m?.id && m?.coverImage?.large) {
+					idToCover.set(m.id, m.coverImage.large);
+				}
+			}
+		} catch (e) {
+			console.warn("[Anime] AniList fetch error:", e);
+		}
+	}
+
+	// merge back (only cover; keep your curated fields untouched)
+	return list.map((item) => {
+		if (!item.cover && item.anilistId && idToCover.has(item.anilistId)) {
+			return { ...item, cover: idToCover.get(item.anilistId)! };
+		}
+		return item;
+	});
 }
 
 let animeList: AnimeItem[] = [];
@@ -122,16 +212,14 @@ const currentConfig = sourceConfigs[ANIME_MODE];
 
 if (currentConfig) {
 	if (currentConfig.type === "local") {
-		animeList = currentConfig.data;
+		animeList = loadLocalAnimeData();
 	} else if (currentConfig.type === "json") {
 		const isDev = import.meta.env.DEV;
 		const shouldFetchOnDev = currentConfig.fetchOnDev ?? false;
 		const skipLoad = isDev && !shouldFetchOnDev;
 
 		if (skipLoad) {
-			console.log(
-				`[Dev] Skipping ${ANIME_MODE} data load (fetchOnDev is off).`,
-			);
+			console.log(`[Dev] Skipping ${ANIME_MODE} data load (fetchOnDev is off).`);
 			animeList = [];
 		} else {
 			animeList = loadAnimeData(currentConfig.filename);
@@ -141,6 +229,60 @@ if (currentConfig) {
 	console.warn(`[Anime] Unknown or unconfigured mode: ${ANIME_MODE}`);
 }
 
+// ✅ Only hydrate covers when items have anilistId (your local list now does)
+if (ANIME_MODE === "local") {
+	animeList = await hydrateFromAniList(animeList);
+}
+
+// Feeling priority order (lower = shown first)
+const feelingOrder: Record<string, number> = {
+	masterpiece: 0,
+	loved: 1,
+	okay: 2,
+	not_for_me: 3,
+	disliked: 4,
+};
+const UNRATED_ORDER = 5;
+
+// Sort by feeling (priority order), then by year descending within each group
+animeList.sort((a, b) => {
+	const fa = a.feeling ? (feelingOrder[a.feeling] ?? UNRATED_ORDER) : UNRATED_ORDER;
+	const fb = b.feeling ? (feelingOrder[b.feeling] ?? UNRATED_ORDER) : UNRATED_ORDER;
+	if (fa !== fb) return fa - fb;
+	const yearA = parseInt(a.year) || 0;
+	const yearB = parseInt(b.year) || 0;
+	return yearB - yearA;
+});
+
+// Group anime by feeling for timeline view
+const feelingGroupOrder = ["masterpiece", "loved", "okay", "not_for_me", "disliked", "_unrated"];
+const animeByFeeling = new Map<string, AnimeItem[]>();
+for (const anime of animeList) {
+	const key = anime.feeling && anime.feeling in feelingOrder ? anime.feeling : "_unrated";
+	if (!animeByFeeling.has(key)) {
+		animeByFeeling.set(key, []);
+	}
+	animeByFeeling.get(key)!.push(anime);
+}
+
+// Ordered map for rendering
+const orderedAnimeByFeeling = new Map<string, AnimeItem[]>();
+for (const key of feelingGroupOrder) {
+	if (animeByFeeling.has(key)) {
+		orderedAnimeByFeeling.set(key, animeByFeeling.get(key)!);
+	}
+}
+
+const feelingGroupLabels: Record<string, { label: string; icon: string }> = {
+	masterpiece: { label: "Personal picks", icon: "★" },
+	loved: { label: "Highly recommend", icon: "♥" },
+	okay: { label: "If you're up to it", icon: "—" },
+	not_for_me: { label: "Didn't click", icon: "~" },
+	disliked: { label: "Avoid these", icon: "✗" },
+	_unrated: { label: "Unrated", icon: "?" },
+};
+
+// --- empty state logic continues unchanged ---
 let emptyMessage = i18n(I18nKey.animeEmpty);
 let emptyDescription = "";
 let showEmptyState = false;
@@ -153,12 +295,7 @@ if (ANIME_MODE === "bilibili" && (!BILIBILI_VMID || BILIBILI_VMID === "")) {
 	emptyDescription = i18n(I18nKey.animeConfigBangumi);
 } else if (animeList.length === 0) {
 	showEmptyState = true;
-	// 优先使用配置中的空描述，否则回退到默认
-	if (
-		currentConfig &&
-		currentConfig.type === "json" &&
-		currentConfig.emptyDescription
-	) {
+	if (currentConfig && currentConfig.type === "json" && currentConfig.emptyDescription) {
 		emptyDescription = currentConfig.emptyDescription;
 	} else if (ANIME_MODE === "local") {
 		emptyDescription = i18n(I18nKey.animeEmptyLocal);
@@ -167,35 +304,34 @@ if (ANIME_MODE === "bilibili" && (!BILIBILI_VMID || BILIBILI_VMID === "")) {
 	}
 }
 
-// 状态样式映射
-const statusMap: Record<string, { text: string; class: string; icon: string }> =
-	{
-		watching: {
-			text: i18n(I18nKey.animeStatusWatching),
-			class: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-			icon: "▶",
-		},
-		completed: {
-			text: i18n(I18nKey.animeStatusCompleted),
-			class: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-			icon: "✓",
-		},
-		planned: {
-			text: i18n(I18nKey.animeStatusPlanned),
-			class: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-			icon: "❤",
-		},
-		onhold: {
-			text: i18n(I18nKey.animeStatusOnHold),
-			class: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
-			icon: "⏸",
-		},
-		dropped: {
-			text: i18n(I18nKey.animeStatusDropped),
-			class: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-			icon: "✗",
-		},
-	};
+// statusMap etc... keep as-is
+const statusMap: Record<string, { text: string; class: string; icon: string }> = {
+	watching: {
+		text: i18n(I18nKey.animeStatusWatching),
+		class: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+		icon: "▶",
+	},
+	completed: {
+		text: i18n(I18nKey.animeStatusCompleted),
+		class: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+		icon: "✓",
+	},
+	planned: {
+		text: i18n(I18nKey.animeStatusPlanned),
+		class: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+		icon: "❤",
+	},
+	onhold: {
+		text: i18n(I18nKey.animeStatusOnHold),
+		class: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+		icon: "⏸",
+	},
+	dropped: {
+		text: i18n(I18nKey.animeStatusDropped),
+		class: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+		icon: "✗",
+	},
+};
 
 function getStatusInfo(status: string) {
 	return (
@@ -205,6 +341,39 @@ function getStatusInfo(status: string) {
 			icon: "?",
 		}
 	);
+}
+
+const feelingMap: Record<string, { label: string; icon: string; class: string }> = {
+	masterpiece: {
+		label: "Masterpiece",
+		icon: "★",
+		class: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+	},
+	loved: {
+		label: "Loved",
+		icon: "♥",
+		class: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300",
+	},
+	okay: {
+		label: "Just okay",
+		icon: "—",
+		class: "bg-slate-100 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400",
+	},
+	not_for_me: {
+		label: "Not for me",
+		icon: "~",
+		class: "bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400",
+	},
+	disliked: {
+		label: "Disliked",
+		icon: "✗",
+		class: "bg-red-100/60 text-red-400 dark:bg-red-900/20 dark:text-red-400",
+	},
+};
+
+function getFeelingInfo(feeling?: string) {
+	if (!feeling || !feelingMap[feeling]) return null;
+	return feelingMap[feeling];
 }
 
 const INITIAL_DISPLAY_COUNT = 24;
@@ -231,6 +400,9 @@ const hiddenAnimeList = animeList.slice(INITIAL_DISPLAY_COUNT);
 					</h1>
 					<p class="text-black/75 dark:text-white/75">
 						{i18n(I18nKey.animeSubtitle)}
+						<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--btn-regular-bg)] text-black/70 dark:text-white/70">
+							{animeList.length} titles
+						</span>
 					</p>
 				</div>
 
@@ -344,16 +516,18 @@ const hiddenAnimeList = animeList.slice(INITIAL_DISPLAY_COUNT);
 													</span>
 												</div>
 
-												<div class="absolute top-2 right-2 bg-black/70 text-white px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1">
-													<svg
-														class="w-3 h-3 text-yellow-400"
-														fill="currentColor"
-														viewBox="0 0 20 20"
-													>
-														<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-													</svg>
-													<span>{anime.rating}</span>
-												</div>
+												{anime.rating > 0 && (
+													<div class="absolute top-2 right-2 bg-black/70 text-white px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1">
+														<svg
+															class="w-3 h-3 text-yellow-400"
+															fill="currentColor"
+															viewBox="0 0 20 20"
+														>
+															<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+														</svg>
+														<span>{anime.rating}</span>
+													</div>
+												)}
 
 												{anime.status ===
 													"watching" && (
@@ -383,8 +557,16 @@ const hiddenAnimeList = animeList.slice(INITIAL_DISPLAY_COUNT);
 												<h3 class="text-sm font-bold text-black/90 dark:text-white/90 mb-1 leading-tight">
 													{anime.title}
 												</h3>
+												{getFeelingInfo(anime.feeling) && (
+													<div
+														class={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium mb-1.5 ${getFeelingInfo(anime.feeling)!.class}`}
+													>
+														<span>{getFeelingInfo(anime.feeling)!.icon}</span>
+														<span>{getFeelingInfo(anime.feeling)!.label}</span>
+													</div>
+												)}
 												<p
-													class="text-black/60 dark:text-white/60 text-xs mb-2 line-clamp-2"
+													class="text-black/60 dark:text-white/60 text-xs mb-2"
 													title={anime.description}
 												>
 													{anime.description}
@@ -426,6 +608,155 @@ const hiddenAnimeList = animeList.slice(INITIAL_DISPLAY_COUNT);
 												</div>
 											</div>
 										</div>
+									);
+								})}
+							</div>
+
+							<div
+								id="anime-timeline-container"
+								class="anime-timeline hidden"
+							>
+								{[...orderedAnimeByFeeling.entries()].map(([feeling, items]) => {
+									const groupInfo = feelingGroupLabels[feeling] || { label: feeling, icon: "?" };
+									const feelingStyle = feeling !== "_unrated" && feelingMap[feeling] ? feelingMap[feeling].class : "bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400";
+									return (
+									<div class="anime-timeline-year-group" data-timeline-feeling={feeling}>
+										<div class="anime-timeline-year">
+											<div class="anime-timeline-node" />
+											<span class={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-lg font-bold ${feelingStyle}`}>
+												<span>{groupInfo.icon}</span>
+												{groupInfo.label}
+											</span>
+										</div>
+										<div class="anime-timeline-cards">
+											{items.map((anime) => {
+												const statusInfo = getStatusInfo(anime.status);
+												const progressPercent =
+													anime.totalEpisodes > 0
+														? (anime.progress / anime.totalEpisodes) * 100
+														: 0;
+
+												return (
+													<div
+														class="group relative bg-[var(--card-bg)] border border-[var(--line-divider)] rounded-[var(--radius-large)] overflow-hidden hover:shadow-lg"
+														data-anime-status={anime.status}
+													>
+														<div class="relative anime-cover-container aspect-[2/3] overflow-hidden">
+															<a
+																href={anime.link}
+																target="_blank"
+																rel="noopener noreferrer"
+																class="block w-full h-full"
+															>
+																<ImageWrapper
+																	src={anime.cover}
+																	alt={anime.title}
+																	class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
+																/>
+																<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+																	<div class="absolute inset-0 flex items-center justify-center">
+																		<div class="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center">
+																			<svg
+																				class="w-6 h-6 text-gray-800 ml-1"
+																				fill="currentColor"
+																				viewBox="0 0 24 24"
+																			>
+																				<path d="M8 5v14l11-7z" />
+																			</svg>
+																		</div>
+																	</div>
+																</div>
+															</a>
+
+															<div
+																class={`absolute top-2 left-2 px-2 py-1 rounded-md text-xs font-medium ${statusInfo.class}`}
+															>
+																<span class="mr-1">{statusInfo.icon}</span>
+																<span>{statusInfo.text}</span>
+															</div>
+
+															{anime.rating > 0 && (
+																<div class="absolute top-2 right-2 bg-black/70 text-white px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1">
+																	<svg
+																		class="w-3 h-3 text-yellow-400"
+																		fill="currentColor"
+																		viewBox="0 0 20 20"
+																	>
+																		<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+																	</svg>
+																	<span>{anime.rating}</span>
+																</div>
+															)}
+
+															{anime.status === "watching" && (
+																<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+																	<div class="w-full bg-white/20 rounded-full h-1.5 mb-1">
+																		<div
+																			class="bg-gradient-to-r from-emerald-400 to-teal-400 h-1.5 rounded-full transition-all duration-300"
+																			style={`width: ${progressPercent}%`}
+																		/>
+																	</div>
+																	<div class="text-white text-xs font-medium">
+																		{anime.progress}/{anime.totalEpisodes}{" "}
+																		({Math.round(progressPercent)}%)
+																	</div>
+																</div>
+															)}
+														</div>
+
+														<div class="p-3">
+															<h3 class="text-sm font-bold text-black/90 dark:text-white/90 mb-1 leading-tight">
+																{anime.title}
+															</h3>
+															{getFeelingInfo(anime.feeling) && (
+																<div
+																	class={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium mb-1.5 ${getFeelingInfo(anime.feeling)!.class}`}
+																>
+																	<span>{getFeelingInfo(anime.feeling)!.icon}</span>
+																	<span>{getFeelingInfo(anime.feeling)!.label}</span>
+																</div>
+															)}
+															<p
+																class="text-black/60 dark:text-white/60 text-xs mb-2"
+																title={anime.description}
+															>
+																{anime.description}
+															</p>
+
+															<div class="space-y-1 text-xs">
+																<div class="flex justify-between items-center">
+																	<span class="text-black/50 dark:text-white/50 shrink-0">
+																		{i18n(I18nKey.animeYear)}
+																	</span>
+																	<span class="text-black/70 dark:text-white/70 truncate ml-2 text-right">
+																		{anime.year}
+																	</span>
+																</div>
+																<div class="flex justify-between items-start">
+																	<span class="text-black/50 dark:text-white/50 shrink-0 mt-0.5">
+																		{i18n(I18nKey.animeStudio)}
+																	</span>
+																	<span
+																		class="text-black/70 dark:text-white/70 text-right ml-2 line-clamp-2 break-words"
+																		title={anime.studio}
+																	>
+																		{anime.studio}
+																	</span>
+																</div>
+																<div class="flex flex-wrap gap-1 mt-2">
+																	{anime.genre.map((g) => (
+																		<span class="px-1.5 py-0.5 bg-[var(--btn-regular-bg)] text-black/70 dark:text-white/70 rounded text-xs">
+																			{g}
+																		</span>
+																	))}
+																</div>
+															</div>
+														</div>
+													</div>
+												);
+											})}
+										</div>
+									</div>
 									);
 								})}
 							</div>
@@ -485,16 +816,18 @@ const hiddenAnimeList = animeList.slice(INITIAL_DISPLAY_COUNT);
 													</span>
 												</div>
 
-												<div class="absolute top-2 right-2 bg-black/70 text-white px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1">
-													<svg
-														class="w-3 h-3 text-yellow-400"
-														fill="currentColor"
-														viewBox="0 0 20 20"
-													>
-														<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-													</svg>
-													<span>{anime.rating}</span>
-												</div>
+												{anime.rating > 0 && (
+													<div class="absolute top-2 right-2 bg-black/70 text-white px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1">
+														<svg
+															class="w-3 h-3 text-yellow-400"
+															fill="currentColor"
+															viewBox="0 0 20 20"
+														>
+															<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+														</svg>
+														<span>{anime.rating}</span>
+													</div>
+												)}
 
 												{anime.status ===
 													"watching" && (
@@ -524,8 +857,16 @@ const hiddenAnimeList = animeList.slice(INITIAL_DISPLAY_COUNT);
 												<h3 class="text-sm font-bold text-black/90 dark:text-white/90 mb-1 leading-tight">
 													{anime.title}
 												</h3>
+												{getFeelingInfo(anime.feeling) && (
+													<div
+														class={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium mb-1.5 ${getFeelingInfo(anime.feeling)!.class}`}
+													>
+														<span>{getFeelingInfo(anime.feeling)!.icon}</span>
+														<span>{getFeelingInfo(anime.feeling)!.label}</span>
+													</div>
+												)}
 												<p
-													class="text-black/60 dark:text-white/60 text-xs mb-2 line-clamp-2"
+													class="text-black/60 dark:text-white/60 text-xs mb-2"
 													title={anime.description}
 												>
 													{anime.description}
@@ -592,7 +933,10 @@ const hiddenAnimeList = animeList.slice(INITIAL_DISPLAY_COUNT);
 				const animeListContainer = document.getElementById(
 					"anime-list-container",
 				);
-				if (!animeListContainer) return false;
+				const timelineContainer = document.getElementById(
+					"anime-timeline-container",
+				);
+				if (!animeListContainer || !timelineContainer) return false;
 				const currentLayout =
 					localStorage.getItem("postListLayout") || "list";
 				updateAnimeListLayout(currentLayout, false);
@@ -639,8 +983,20 @@ const hiddenAnimeList = animeList.slice(INITIAL_DISPLAY_COUNT);
 				const animeListContainer = document.getElementById(
 					"anime-list-container",
 				);
+				const timelineContainer = document.getElementById(
+					"anime-timeline-container",
+				);
 				if (!animeListContainer) return;
 				animeListContainer.dataset.currentLayout = layout;
+
+				// Toggle between grid and timeline containers
+				if (layout === "grid") {
+					animeListContainer.classList.remove("hidden");
+					if (timelineContainer) timelineContainer.classList.add("hidden");
+				} else {
+					animeListContainer.classList.add("hidden");
+					if (timelineContainer) timelineContainer.classList.remove("hidden");
+				}
 
 				const animeItems = Array.from(
 					document.querySelectorAll("[data-anime-status]"),
@@ -919,6 +1275,38 @@ const hiddenAnimeList = animeList.slice(INITIAL_DISPLAY_COUNT);
 						setTimeout(runAnimation, 200);
 					} else {
 						runAnimation();
+					}
+
+					// Also filter timeline items
+					const timelineContainer = document.getElementById(
+						"anime-timeline-container",
+					);
+					if (timelineContainer) {
+						const timelineItems = timelineContainer.querySelectorAll(
+							"[data-anime-status]",
+						);
+						timelineItems.forEach((item) => {
+							const itemStatus = item.getAttribute("data-anime-status");
+							if (status === "all" || itemStatus === status) {
+								item.classList.remove("anime-hidden");
+							} else {
+								item.classList.add("anime-hidden");
+							}
+						});
+						// Hide year groups with no visible items
+						const yearGroups = timelineContainer.querySelectorAll(
+							".anime-timeline-year-group",
+						);
+						yearGroups.forEach((group) => {
+							const visibleCards = group.querySelectorAll(
+								"[data-anime-status]:not(.anime-hidden)",
+							);
+							if (visibleCards.length === 0) {
+								group.classList.add("timeline-year-hidden");
+							} else {
+								group.classList.remove("timeline-year-hidden");
+							}
+						});
 					}
 				};
 
