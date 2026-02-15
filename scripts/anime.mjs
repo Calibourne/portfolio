@@ -125,8 +125,7 @@ function formatDescription(raw) {
 		.replace(/<br\s*\/?>/gi, " ")
 		.replace(/<[^>]+>/g, "")
 		.replace(/\s+/g, " ")
-		.trim()
-		.slice(0, 200);
+		.trim();
 }
 
 function formatEpisodes(media) {
