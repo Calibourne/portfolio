@@ -1,25 +1,37 @@
-import { getCollection } from "astro:content";
+import projectsData from "../data/projects.json";
 
-export type Project = Awaited<
-	ReturnType<typeof getCollection<"projects">>
->[number];
-
-export async function getProjects() {
-	return await getCollection("projects");
+export interface Project {
+	id: string;
+	title: string;
+	description: string;
+	image: string;
+	category: "web" | "mobile" | "desktop" | "other";
+	techStack: string[];
+	status: "completed" | "in-progress" | "planned";
+	liveDemo?: string;
+	sourceCode?: string;
+	visitUrl?: string;
+	startDate: string;
+	endDate?: string;
+	featured?: boolean;
+	tags?: string[];
 }
 
-export async function getProjectStats() {
-	const projects = await getCollection("projects");
+const projects: Project[] = projectsData as Project[];
+
+export function getProjects(): Project[] {
+	return projects;
+}
+
+export function getProjectStats() {
 	const total = projects.length;
 	const completed = projects.filter(
-		(p) => p.data.status === "completed",
+		(p) => p.status === "completed",
 	).length;
 	const inProgress = projects.filter(
-		(p) => p.data.status === "in-progress",
+		(p) => p.status === "in-progress",
 	).length;
-	const planned = projects.filter(
-		(p) => p.data.status === "planned",
-	).length;
+	const planned = projects.filter((p) => p.status === "planned").length;
 
 	return {
 		total,
@@ -31,37 +43,31 @@ export async function getProjectStats() {
 	};
 }
 
-export async function getProjectsByCategory(category?: string) {
-	const projects = await getCollection("projects");
+export function getProjectsByCategory(category?: string): Project[] {
 	if (!category || category === "all") {
 		return projects;
 	}
-	return projects.filter((p) => p.data.category === category);
+	return projects.filter((p) => p.category === category);
 }
 
-export async function getFeaturedProjects() {
-	const projects = await getCollection("projects");
-	return projects.filter((p) => p.data.featured);
+export function getFeaturedProjects(): Project[] {
+	return projects.filter((p) => p.featured);
 }
 
-export async function getAllTechStack() {
-	const projects = await getCollection("projects");
+export function getAllTechStack(): string[] {
 	const techSet = new Set<string>();
 	projects.forEach((project) => {
-		project.data.techStack.forEach((tech) => {
+		project.techStack.forEach((tech) => {
 			techSet.add(tech);
 		});
 	});
 	return Array.from(techSet).sort();
 }
 
-export async function getTechFrequency(): Promise<
-	{ tech: string; count: number }[]
-> {
-	const projects = await getCollection("projects");
+export function getTechFrequency(): { tech: string; count: number }[] {
 	const counts = new Map<string, number>();
 	for (const project of projects) {
-		for (const tech of project.data.techStack) {
+		for (const tech of project.techStack) {
 			counts.set(tech, (counts.get(tech) ?? 0) + 1);
 		}
 	}

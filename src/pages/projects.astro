@@ -12,8 +12,6 @@ import ProjectsChart from "../components/ProjectsChart.svelte";
 import I18nKey from "../i18n/i18nKey";
 import { i18n } from "../i18n/translation";
 import MainGridLayout from "../layouts/MainGridLayout.astro";
-import ImageWrapper from "../components/misc/ImageWrapper.astro";
-import { getFileDirFromPath } from "../utils/url-utils";
 
 // 检查项目页面是否启用
 if (!siteConfig.featurePages.projects) {
@@ -21,21 +19,21 @@ if (!siteConfig.featurePages.projects) {
 }
 
 // 获取项目统计信息
-const stats = await getProjectStats();
-const featuredProjects = await getFeaturedProjects();
-const allTechStack = await getAllTechStack();
-const techFrequency = await getTechFrequency();
-const projects = await getProjects();
+const stats = getProjectStats();
+const featuredProjects = getFeaturedProjects();
+const allTechStack = getAllTechStack();
+const techFrequency = getTechFrequency();
+const projects = getProjects();
 
 // 获取所有分类
 const categories = [
-	...new Set(projects.map((project) => project.data.category)),
+	...new Set(projects.map((project) => project.category)),
 ];
 
 // 按分类获取项目
 const projectsByCategory = categories.reduce(
 	(acc, category) => {
-		acc[category] = projects.filter((p) => p.data.category === category);
+		acc[category] = projects.filter((p) => p.category === category);
 		return acc;
 	},
 	{} as Record<string, typeof projects>,
@@ -193,12 +191,11 @@ const getCategoryText = (category: string) => {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             {featuredProjects.map((project) => (
               <div class="bg-transparent rounded-lg border border-black/10 dark:border-white/10 overflow-hidden hover:shadow-lg transition-shadow duration-300">
-                {project.data.image && (
+                {project.image && (
                   <div class="aspect-video overflow-hidden">
-                    <ImageWrapper
-                      src={project.data.image}
-                      basePath={getFileDirFromPath(project.filePath || "")}
-                      alt={project.data.title}
+                    <img
+                      src={project.image}
+                      alt={project.title}
                       class="w-full h-full hover:scale-105 transition-transform duration-300"
                     />
                   </div>
@@ -206,49 +203,49 @@ const getCategoryText = (category: string) => {
                 <div class="p-6">
                   <div class="flex items-start justify-between mb-3">
                     <h3 class="text-xl font-semibold text-black/90 dark:text-white/90">
-                      {project.data.title}
+                      {project.title}
                     </h3>
                     <span class={`px-2 py-1 text-xs rounded-full ${
-                      project.data.status === 'completed'
+                      project.status === 'completed'
                         ? 'bg-green-600/20 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                        : project.data.status === 'in-progress'
+                        : project.status === 'in-progress'
                         ? 'bg-yellow-600/20 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
                         : 'bg-gray-600/20 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
                     }`}>
-                      {i18n(project.data.status === 'completed' ? I18nKey.projectsCompleted :
-                            project.data.status === 'in-progress' ? I18nKey.projectsInProgress :
+                      {i18n(project.status === 'completed' ? I18nKey.projectsCompleted :
+                            project.status === 'in-progress' ? I18nKey.projectsInProgress :
                             I18nKey.projectsPlanned)}
                     </span>
                   </div>
                   <div class="project-desc-wrapper mb-4">
                     <p class="text-black/60 dark:text-white/60 project-desc line-clamp-2">
-                      {project.data.description}
+                      {project.description}
                     </p>
                     <button class="project-desc-toggle text-xs text-[var(--primary)] hover:underline cursor-pointer mt-1 hidden">
                       {i18n(I18nKey.projectsShowMore)}
                     </button>
                   </div>
                   <div class="flex flex-wrap gap-2 mb-4 tech-stack-wrapper">
-                    {project.data.techStack.slice(0, 4).map((tech) => (
+                    {project.techStack.slice(0, 4).map((tech) => (
                       <span class="px-2 py-1 text-xs bg-blue-600/20 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded">
                         {tech}
                       </span>
                     ))}
-                    {project.data.techStack.length > 4 && (
+                    {project.techStack.length > 4 && (
                       <button class="tech-stack-toggle px-2 py-1 text-xs bg-gray-600/20 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400 rounded cursor-pointer hover:bg-gray-600/30 dark:hover:bg-gray-900/50 transition-colors">
-                        +{project.data.techStack.length - 4}
+                        +{project.techStack.length - 4}
                       </button>
                     )}
-                    {project.data.techStack.slice(4).map((tech) => (
+                    {project.techStack.slice(4).map((tech) => (
                       <span class="px-2 py-1 text-xs bg-blue-600/20 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded tech-stack-extra hidden">
                         {tech}
                       </span>
                     ))}
                   </div>
                   <div class="flex flex-wrap gap-2 text-sm">
-                    {project.data.visitUrl && (
+                    {project.visitUrl && (
                       <a
-                        href={project.data.visitUrl}
+                        href={project.visitUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         class="btn-gradient btn-gradient-primary btn-gradient-md"
@@ -257,9 +254,9 @@ const getCategoryText = (category: string) => {
                         {i18n(I18nKey.projectsVisit)}
                       </a>
                     )}
-                    {project.data.sourceCode && (
+                    {project.sourceCode && (
                       <a
-                        href={project.data.sourceCode}
+                        href={project.sourceCode}
                         target="_blank"
                         rel="noopener noreferrer"
                         class="btn-gradient btn-github btn-gradient-md"
@@ -294,13 +291,12 @@ const getCategoryText = (category: string) => {
               </h2>
               <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {categoryProjects.map((project) => (
-                  <div class="project-card bg-transparent rounded-lg border border-black/10 dark:border-white/10 overflow-hidden hover:shadow-lg transition-shadow duration-300" data-tech={JSON.stringify(project.data.techStack)}>
-                    {project.data.image && (
+                  <div class="project-card bg-transparent rounded-lg border border-black/10 dark:border-white/10 overflow-hidden hover:shadow-lg transition-shadow duration-300" data-tech={JSON.stringify(project.techStack)}>
+                    {project.image && (
                       <div class="aspect-video overflow-hidden">
-                        <ImageWrapper
-                          src={project.data.image}
-                          basePath={getFileDirFromPath(project.filePath || "")}
-                          alt={project.data.title}
+                        <img
+                          src={project.image}
+                          alt={project.title}
                           class="w-full h-full hover:scale-105 transition-transform duration-300"
                         />
                       </div>
@@ -308,49 +304,49 @@ const getCategoryText = (category: string) => {
                     <div class="p-4">
                       <div class="flex items-start justify-between mb-2">
                         <h3 class="text-lg font-semibold text-black/90 dark:text-white/90">
-                          {project.data.title}
+                          {project.title}
                         </h3>
                         <span class={`px-2 py-1 text-xs rounded-full shrink-0 ml-2 ${
-                          project.data.status === 'completed'
+                          project.status === 'completed'
                             ? 'bg-green-600/20 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            : project.data.status === 'in-progress'
+                            : project.status === 'in-progress'
                             ? 'bg-yellow-600/20 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
                             : 'bg-gray-600/20 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
                         }`}>
-                          {i18n(project.data.status === 'completed' ? I18nKey.projectsCompleted :
-                                project.data.status === 'in-progress' ? I18nKey.projectsInProgress :
+                          {i18n(project.status === 'completed' ? I18nKey.projectsCompleted :
+                                project.status === 'in-progress' ? I18nKey.projectsInProgress :
                                 I18nKey.projectsPlanned)}
                         </span>
                       </div>
                       <div class="project-desc-wrapper mb-3">
                         <p class="text-black/60 dark:text-white/60 text-sm project-desc line-clamp-2">
-                          {project.data.description}
+                          {project.description}
                         </p>
                         <button class="project-desc-toggle text-xs text-[var(--primary)] hover:underline cursor-pointer mt-1 hidden">
                           {i18n(I18nKey.projectsShowMore)}
                         </button>
                       </div>
                       <div class="flex flex-wrap gap-1 mb-3 tech-stack-wrapper">
-                        {project.data.techStack.slice(0, 3).map((tech) => (
+                        {project.techStack.slice(0, 3).map((tech) => (
                           <span class="px-2 py-1 text-xs bg-blue-600/20 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded">
                             {tech}
                           </span>
                         ))}
-                        {project.data.techStack.length > 3 && (
+                        {project.techStack.length > 3 && (
                           <button class="tech-stack-toggle px-2 py-1 text-xs bg-gray-600/20 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400 rounded cursor-pointer hover:bg-gray-600/30 dark:hover:bg-gray-900/50 transition-colors">
-                            +{project.data.techStack.length - 3}
+                            +{project.techStack.length - 3}
                           </button>
                         )}
-                        {project.data.techStack.slice(3).map((tech) => (
+                        {project.techStack.slice(3).map((tech) => (
                           <span class="px-2 py-1 text-xs bg-blue-600/20 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded tech-stack-extra hidden">
                             {tech}
                           </span>
                         ))}
                       </div>
                       <div class="flex flex-wrap gap-2 text-sm">
-                        {project.data.visitUrl && (
+                        {project.visitUrl && (
                           <a
-                            href={project.data.visitUrl}
+                            href={project.visitUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             class="btn-gradient btn-gradient-primary btn-gradient-md"
@@ -359,9 +355,9 @@ const getCategoryText = (category: string) => {
                             {i18n(I18nKey.projectsVisit)}
                           </a>
                         )}
-                        {project.data.sourceCode && (
+                        {project.sourceCode && (
                           <a
-                            href={project.data.sourceCode}
+                            href={project.sourceCode}
                             target="_blank"
                             rel="noopener noreferrer"
                             class="btn-gradient btn-github btn-gradient-md"

@@ -38,30 +38,11 @@ const postsCollection = defineCollection({
 		nextSlug: z.string().default(""),
 	}),
 });
-const projectsCollection = defineCollection({
-	loader: glob({ pattern: "**/*.md", base: "./src/content/projects" }),
-	schema: z.object({
-		title: z.string(),
-		description: z.string(),
-		image: z.string().optional().default(""),
-		category: z.enum(["web", "mobile", "desktop", "other"]),
-		techStack: z.array(z.string()),
-		status: z.enum(["completed", "in-progress", "planned"]),
-		liveDemo: z.string().optional(),
-		sourceCode: z.string().optional(),
-		visitUrl: z.string().optional(),
-		startDate: z.date(),
-		endDate: z.date().optional(),
-		featured: z.boolean().optional().default(false),
-		tags: z.array(z.string()).optional().default([]),
-	}),
-});
 const specCollection = defineCollection({
 	loader: glob({ pattern: "**/*.md", base: "./src/content/spec" }),
 	schema: z.object({}),
 });
 export const collections = {
 	posts: postsCollection,
-	projects: projectsCollection,
 	spec: specCollection,
 };
