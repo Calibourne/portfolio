@@ -287,7 +287,7 @@ export const navBarConfig: NavBarConfig = {
 };
 
 export const profileConfig: ProfileConfig = {
-  avatar: "assets/images/avatar.webp", 
+  avatar: "/images/avatar.webp",
   // Path relative to /public if starting with "/"
 
   name: "Eddie Kanevsky",

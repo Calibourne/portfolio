@@ -48,5 +48,13 @@ src/data/bangumi-data.json
 # Bilibili generated data
 src/data/bilibili-data.json
 
+# Personal content (populated by content sync)
+src/content/posts/
+src/content/spec/
+src/data/
+src/assets/images/*.png
+src/assets/images/avatar.webp
+public/images/
+
 # Claude Code
 CLAUDE.md
