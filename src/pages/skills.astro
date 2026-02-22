@@ -43,13 +43,13 @@ const skillsByCategory = categories.reduce(
 // 技能等级颜色映射
 const getLevelColor = (level: string) => {
 	switch (level) {
-		case "expert":
+		case "deep":
 			return "bg-red-600/20 text-red-700 dark:bg-red-900/30 dark:text-red-400";
-		case "advanced":
+		case "strong":
 			return "bg-orange-600/20 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400";
-		case "intermediate":
+		case "comfortable":
 			return "bg-yellow-600/20 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
-		case "beginner":
+		case "familiar":
 			return "bg-green-600/20 text-green-700 dark:bg-green-900/30 dark:text-green-400";
 		default:
 			return "bg-gray-600/20 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400";
@@ -59,13 +59,13 @@ const getLevelColor = (level: string) => {
 // 技能等级进度条宽度
 const getLevelWidth = (level: string) => {
 	switch (level) {
-		case "expert":
+		case "deep":
 			return "100%";
-		case "advanced":
+		case "strong":
 			return "80%";
-		case "intermediate":
+		case "comfortable":
 			return "60%";
-		case "beginner":
+		case "familiar":
 			return "40%";
 		default:
 			return "20%";
@@ -75,10 +75,18 @@ const getLevelWidth = (level: string) => {
 // 获取分类的显示文本
 const getCategoryText = (category: string) => {
 	switch (category) {
+		case "computer-vision":
+			return i18n(I18nKey.skillsComputerVision);
+		case "machine-learning":
+			return i18n(I18nKey.skillsMachineLearning);
+		case "backend-systems":
+			return i18n(I18nKey.skillsBackendSystems);
+		case "cloud-infrastructure":
+			return i18n(I18nKey.skillsCloudInfrastructure);
+		case "data-engineering":
+			return i18n(I18nKey.skillsDataEngineering);
 		case "frontend":
 			return i18n(I18nKey.skillsFrontend);
-		case "backend":
-			return i18n(I18nKey.skillsBackend);
 		case "database":
 			return i18n(I18nKey.skillsDatabase);
 		case "tools":
@@ -160,10 +168,10 @@ const allIcons = skillsData.map((skill) => skill.icon).filter(Boolean);
                         {skill.name}
                       </h3>
                       <span class={`px-2 py-1 text-xs rounded-full ${getLevelColor(skill.level)}`}>
-                        {skill.level === 'expert' ? i18n(I18nKey.skillLevelExpert) :
-                         skill.level === 'advanced' ? i18n(I18nKey.skillLevelAdvanced) :
-                         skill.level === 'intermediate' ? i18n(I18nKey.skillLevelIntermediate) :
-                         i18n(I18nKey.skillLevelBeginner)}
+                        {skill.level === 'deep' ? i18n(I18nKey.skillLevelDeep) :
+                         skill.level === 'strong' ? i18n(I18nKey.skillLevelStrong) :
+                         skill.level === 'comfortable' ? i18n(I18nKey.skillLevelComfortable) :
+                         i18n(I18nKey.skillLevelFamiliar)}
                       </span>
                     </div>
                     <p class="text-black/60 dark:text-white/60 mb-3 text-sm">
@@ -237,10 +245,10 @@ const allIcons = skillsData.map((skill) => skill.icon).filter(Boolean);
                             {skill.name}
                           </h3>
                           <span class={`px-2 py-1 text-xs rounded-full shrink-0 ml-2 ${getLevelColor(skill.level)}`}>
-                            {skill.level === 'expert' ? i18n(I18nKey.skillLevelExpert) :
-                             skill.level === 'advanced' ? i18n(I18nKey.skillLevelAdvanced) :
-                             skill.level === 'intermediate' ? i18n(I18nKey.skillLevelIntermediate) :
-                             i18n(I18nKey.skillLevelBeginner)}
+                            {skill.level === 'deep' ? i18n(I18nKey.skillLevelDeep) :
+                             skill.level === 'strong' ? i18n(I18nKey.skillLevelStrong) :
+                             skill.level === 'comfortable' ? i18n(I18nKey.skillLevelComfortable) :
+                             i18n(I18nKey.skillLevelFamiliar)}
                           </span>
                         </div>
                         <p class="text-black/60 dark:text-white/60 mb-2 text-sm line-clamp-2">

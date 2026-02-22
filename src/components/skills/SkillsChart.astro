@@ -50,14 +50,18 @@ interface Props {
 	stats: {
 		total: number;
 		byLevel: {
-			beginner: number;
-			intermediate: number;
-			advanced: number;
-			expert: number;
+			familiar: number;
+			comfortable: number;
+			strong: number;
+			deep: number;
 		};
 		byCategory: {
+			"computer-vision": number;
+			"machine-learning": number;
+			"backend-systems": number;
+			"cloud-infrastructure": number;
+			"data-engineering": number;
 			frontend: number;
-			backend: number;
 			database: number;
 			tools: number;
 			other: number;
@@ -73,55 +77,79 @@ const { stats, totalExperience } = Astro.props;
 
 // 颜色配置
 const levelColors = {
-	expert: "#EF4444", // red-500
-	advanced: "#F97316", // orange-500
-	intermediate: "#EAB308", // yellow-500
-	beginner: "#22C55E", // green-500
+	deep: "#EF4444", // red-500
+	strong: "#F97316", // orange-500
+	comfortable: "#EAB308", // yellow-500
+	familiar: "#22C55E", // green-500
 };
 
 const categoryColors = {
+	"computer-vision": "#6366F1", // indigo-500
+	"machine-learning": "#F43F5E", // rose-500
+	"backend-systems": "#8B5CF6", // violet-500
+	"cloud-infrastructure": "#F59E0B", // amber-500
+	"data-engineering": "#14B8A6", // teal-500
 	frontend: "#3B82F6", // blue-500
-	backend: "#8B5CF6", // violet-500
 	database: "#10B981", // emerald-500
-	tools: "#F59E0B", // amber-500
+	tools: "#F97316", // orange-500
 	other: "#EC4899", // pink-500
 };
 
 // 计算扇形图数据（按技能等级）
 const levelData = [
 	{
-		name: i18n(I18nKey.skillLevelExpert),
-		value: stats.byLevel.expert,
-		color: levelColors.expert,
+		name: i18n(I18nKey.skillLevelDeep),
+		value: stats.byLevel.deep,
+		color: levelColors.deep,
 	},
 	{
-		name: i18n(I18nKey.skillLevelAdvanced),
-		value: stats.byLevel.advanced,
-		color: levelColors.advanced,
+		name: i18n(I18nKey.skillLevelStrong),
+		value: stats.byLevel.strong,
+		color: levelColors.strong,
 	},
 	{
-		name: i18n(I18nKey.skillLevelIntermediate),
-		value: stats.byLevel.intermediate,
-		color: levelColors.intermediate,
+		name: i18n(I18nKey.skillLevelComfortable),
+		value: stats.byLevel.comfortable,
+		color: levelColors.comfortable,
 	},
 	{
-		name: i18n(I18nKey.skillLevelBeginner),
-		value: stats.byLevel.beginner,
-		color: levelColors.beginner,
+		name: i18n(I18nKey.skillLevelFamiliar),
+		value: stats.byLevel.familiar,
+		color: levelColors.familiar,
 	},
 ];
 
 // 计算矩形图数据（按技能分类）
 const categoryData = [
 	{
+		name: i18n(I18nKey.skillsComputerVision),
+		value: stats.byCategory["computer-vision"],
+		color: categoryColors["computer-vision"],
+	},
+	{
+		name: i18n(I18nKey.skillsMachineLearning),
+		value: stats.byCategory["machine-learning"],
+		color: categoryColors["machine-learning"],
+	},
+	{
+		name: i18n(I18nKey.skillsBackendSystems),
+		value: stats.byCategory["backend-systems"],
+		color: categoryColors["backend-systems"],
+	},
+	{
+		name: i18n(I18nKey.skillsCloudInfrastructure),
+		value: stats.byCategory["cloud-infrastructure"],
+		color: categoryColors["cloud-infrastructure"],
+	},
+	{
+		name: i18n(I18nKey.skillsDataEngineering),
+		value: stats.byCategory["data-engineering"],
+		color: categoryColors["data-engineering"],
+	},
+	{
 		name: i18n(I18nKey.skillsFrontend),
 		value: stats.byCategory.frontend,
 		color: categoryColors.frontend,
-	},
-	{
-		name: i18n(I18nKey.skillsBackend),
-		value: stats.byCategory.backend,
-		color: categoryColors.backend,
 	},
 	{
 		name: i18n(I18nKey.skillsDatabase),
@@ -178,19 +206,19 @@ const calculatePercentage = (value: number, total: number) => {
             <svg viewBox="0 0 100 100" class="w-full h-full">
               <defs>
                 <!-- 为每个技能等级定义更协调的径向渐变 -->
-                <radialGradient id="expert-gradient" cx="50%" cy="50%" r="70%">
+                <radialGradient id="deep-gradient" cx="50%" cy="50%" r="70%">
                   <stop offset="0%" stop-color="#FECACA" />
                   <stop offset="100%" stop-color="#EF4444" />
                 </radialGradient>
-                <radialGradient id="advanced-gradient" cx="50%" cy="50%" r="70%">
+                <radialGradient id="strong-gradient" cx="50%" cy="50%" r="70%">
                   <stop offset="0%" stop-color="#FED7AA" />
                   <stop offset="100%" stop-color="#F97316" />
                 </radialGradient>
-                <radialGradient id="intermediate-gradient" cx="50%" cy="50%" r="70%">
+                <radialGradient id="comfortable-gradient" cx="50%" cy="50%" r="70%">
                   <stop offset="0%" stop-color="#FEF08A" />
                   <stop offset="100%" stop-color="#EAB308" />
                 </radialGradient>
-                <radialGradient id="beginner-gradient" cx="50%" cy="50%" r="70%">
+                <radialGradient id="familiar-gradient" cx="50%" cy="50%" r="70%">
                   <stop offset="0%" stop-color="#BBF7D0" />
                   <stop offset="100%" stop-color="#22C55E" />
                 </radialGradient>
@@ -198,17 +226,17 @@ const calculatePercentage = (value: number, total: number) => {
               {levelSegments.map((segment, index) => {
                 const pathData = calculatePathData(segment);
                 if (!pathData) return null;
-                
+
                 // 根据技能等级选择对应的渐变
                 let gradientId = "";
-                if (segment.name === i18n(I18nKey.skillLevelExpert)) {
-                  gradientId = "expert-gradient";
-                } else if (segment.name === i18n(I18nKey.skillLevelAdvanced)) {
-                  gradientId = "advanced-gradient";
-                } else if (segment.name === i18n(I18nKey.skillLevelIntermediate)) {
-                  gradientId = "intermediate-gradient";
-                } else if (segment.name === i18n(I18nKey.skillLevelBeginner)) {
-                  gradientId = "beginner-gradient";
+                if (segment.name === i18n(I18nKey.skillLevelDeep)) {
+                  gradientId = "deep-gradient";
+                } else if (segment.name === i18n(I18nKey.skillLevelStrong)) {
+                  gradientId = "strong-gradient";
+                } else if (segment.name === i18n(I18nKey.skillLevelComfortable)) {
+                  gradientId = "comfortable-gradient";
+                } else if (segment.name === i18n(I18nKey.skillLevelFamiliar)) {
+                  gradientId = "familiar-gradient";
                 }
                 
                 return (

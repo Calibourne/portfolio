@@ -43,6 +43,7 @@ export const siteConfig: SiteConfig = {
 	  diary: false, // Diary page (disabled)
 	  friends: true, // Friends/links page (optional; keep if you want “people I work with / recommend”)
 	  projects: true, // Projects page
+	  research: true, // Research / publications page
 	  skills: true, // Skills page
 	  timeline: true, // Timeline page
 	  albums: false, // Albums/gallery page (disabled)
