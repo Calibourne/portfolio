@@ -24,7 +24,7 @@ const SITE_TIMEZONE = 2; //设置你的网站时区 from -12 to 12 default in UT
 export const siteConfig: SiteConfig = {
   title: "Eddie Kanevsky",
   subtitle: "Portfolio",
-  siteURL: "https://your-domain.com/", // Replace with your site URL (end with a trailing slash)
+  siteURL: "https://calibourne.github.io/portfolio/", // Replace with your site URL (end with a trailing slash)
   siteStartDate: "2025-01-01", // Used by site-stats widgets to calculate “days running”
 
   timeZone: SITE_TIMEZONE,
