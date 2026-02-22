@@ -194,15 +194,15 @@ export const siteConfig: SiteConfig = {
     asciiFont: {
       fontFamily: "Inter",
       fontWeight: "400",
-      localFonts: ["/assets/font/Inter-Regular.ttf"],
-      enableCompress: true, // Font subsetting in production
+      localFonts: [],
+      enableCompress: false,
     },
     // Keep a CJK fallback only if you *actually* publish CJK text sometimes.
     cjkFont: {
       fontFamily: "Noto Sans JP",
       fontWeight: "400",
-      localFonts: ["/assets/font/NotoSansJP-Regular.ttf"],
-      enableCompress: true,
+      localFonts: [],
+      enableCompress: false,
     },
   },
 
