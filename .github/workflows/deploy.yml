@@ -4,6 +4,8 @@ on:
   push:
     branches: [site]
   workflow_dispatch:
+  repository_dispatch:
+    types: [content-updated]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
