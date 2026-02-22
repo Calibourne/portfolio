@@ -8,6 +8,7 @@ import {
 import I18nKey from "../i18n/i18nKey";
 import { i18n } from "../i18n/translation";
 import MainGridLayout from "../layouts/MainGridLayout.astro";
+import { url } from "../utils/url-utils";
 
 if (!siteConfig.featurePages.research) {
 	return Astro.redirect("/404/");
@@ -125,7 +126,7 @@ const statusLabel = (status: string) => {
                 {pub.image && (
                   <div class="aspect-video overflow-hidden">
                     <img
-                      src={pub.image}
+                      src={url(pub.image)}
                       alt={pub.title}
                       class="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                     />

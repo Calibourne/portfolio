@@ -11,6 +11,7 @@ import {
 import I18nKey from "../i18n/i18nKey";
 import { i18n } from "../i18n/translation";
 import MainGridLayout from "../layouts/MainGridLayout.astro";
+import { url } from "../utils/url-utils";
 
 // import { loadIconify } from "../utils/icon-loader";
 
@@ -126,7 +127,7 @@ const getCategoryText = (category: string) => {
                 {project.image && (
                   <div class="aspect-video overflow-hidden">
                     <img 
-                      src={project.image} 
+                      src={url(project.image)} 
                       alt={project.title}
                       class="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                     />
@@ -217,7 +218,7 @@ const getCategoryText = (category: string) => {
                     {project.image && (
                       <div class="aspect-video overflow-hidden">
                         <img 
-                          src={project.image} 
+                          src={url(project.image)} 
                           alt={project.title}
                           class="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                         />
