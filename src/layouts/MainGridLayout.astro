@@ -650,8 +650,9 @@ const transparentClass = shouldEnableTransparency
     ) : (
         <!-- Single image mode -->
         <div id="banner-single-container" class="relative h-full w-full">
-            <script is:inline define:vars={{ desktopImages: bannerImages.desktop, mobileImages: bannerImages.mobile, position: siteConfig.banner.position }}>
+            <script is:inline define:vars={{ desktopImages: bannerImages.desktop, mobileImages: bannerImages.mobile, position: siteConfig.banner.position, baseUrl: import.meta.env.BASE_URL }}>
                 (function() {
+                    const withBase = (src) => src ? baseUrl.replace(/\/$/, '') + src : src;
                     const getRandomImage = (images, storageKey) => {
                         if (Array.isArray(images)) {
                             if (images.length === 0) return null;
@@ -679,7 +680,7 @@ const transparentClass = shouldEnableTransparency
                         const mobileImg = document.createElement('img');
                         mobileImg.alt = 'Mobile banner image of the blog';
                         mobileImg.className = 'block md:hidden object-cover h-full w-full transition duration-700 opacity-100';
-                        mobileImg.src = mobileSrc;
+                        mobileImg.src = withBase(mobileSrc);
                         mobileImg.loading = 'eager';
                         mobileImg.dataset.position = position;
                         container.appendChild(mobileImg);
@@ -690,7 +691,7 @@ const transparentClass = shouldEnableTransparency
                         desktopImg.id = 'banner';
                         desktopImg.alt = 'Desktop banner image of the blog';
                         desktopImg.className = 'hidden md:block object-cover h-full w-full transition duration-700 opacity-100';
-                        desktopImg.src = desktopSrc;
+                        desktopImg.src = withBase(desktopSrc);
                         desktopImg.loading = 'eager';
                         desktopImg.dataset.position = position;
                         container.appendChild(desktopImg);
